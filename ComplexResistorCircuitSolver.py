@@ -17,7 +17,7 @@ class ComplexResistorCircuitSolver:
 
     def add_voltage_source(self, name, voltage, node1, node2):
         """Add a voltage source to the circuit."""
-        self.components[name] = {'type': 'voltage_source', 'value': voltage, 'nodes': (node1, node2)}
+        self.components[name] = {'type': 'voltage_source', 'value': voltage, 'nodes': (node2, node1)}
         self.nodes.update([node1, node2])
         self.voltage_sources.append(name)
 
@@ -131,7 +131,7 @@ class ComplexResistorCircuitSolver:
                 currents[name] = current
             elif component['type'] == 'voltage_source':
                 index = len(voltages) - 1 + self.voltage_sources.index(name)
-                currents[name] = self.solution[index]
+                currents[name] = -self.solution[index]
             elif component['type'] == 'current_source':
                 currents[name] = component['value']
         return currents
@@ -141,11 +141,12 @@ def main():
     circuit = ComplexResistorCircuitSolver()
 
     # Add components
-    circuit.add_resistor('R1', 10, 1, 2)
-    circuit.add_resistor('R2', 10, 2, 0)
-    circuit.add_resistor('R3', 10, 2, 3)
-    circuit.add_resistor('R4', 10, 3, 0)
-    circuit.add_voltage_source('V1', 10, 0, 1)
+    circuit.add_resistor('R1', 2, 0, 1)
+    circuit.add_resistor('R2', 4, 0, 2)
+    circuit.add_resistor('R3', 10, 1, 2)
+    circuit.add_voltage_source('V1', 2, 1, 2)
+    circuit.add_current_source('I1', 2, 0, 1)
+    circuit.add_current_source('I2', 7, 2, 0)
 
     # Set reference node
     circuit.set_reference_node(0)
