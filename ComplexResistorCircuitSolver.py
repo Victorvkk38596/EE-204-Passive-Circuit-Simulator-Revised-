@@ -32,10 +32,10 @@ class DynamicCircuitSolver:
         self.abstol = 1e-8
         self.reltol = 1e-6
         self.max_step = 1e-5
-        self.method = 'BDF'
+        self.method = 'LSODA'
 
     def set_simulation_parameters(self, abstol: float = 1e-8, reltol: float = 1e-6,
-                                  max_step: float = 1e-5, method: str = 'BDF'):
+                                  max_step: float = 1e-5, method: str = 'LSODA'):
         """Set simulation parameters for numerical stability."""
         self.abstol = abstol
         self.reltol = reltol
