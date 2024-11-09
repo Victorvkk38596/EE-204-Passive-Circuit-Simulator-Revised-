@@ -1,188 +1,193 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-class ComplexResistorCircuitSolver:
-    def __init__(self):
-        self.components = {}
-        self.nodes = set()
-        self.reference_node = None
-        self.voltage_sources = []
+class Component:
+    def __init__(self, name, value, nodes, ac_dc="DC", frequency=0, phase=0):
+        self.name = name
+        self.value = value
+        self.nodes = nodes
+        self.ac_dc = ac_dc
+        self.frequency = frequency
+        self.phase = phase
 
-    def add_resistor(self, name, resistance, node1, node2):
-        """Add a resistor to the circuit."""
-        if resistance <= 0:
-            raise ValueError(f"Resistance must be positive. Got {resistance} for {name}.")
-        self.components[name] = {'type': 'resistor', 'value': resistance, 'nodes': (node1, node2)}
-        self.nodes.update([node1, node2])
 
-    def add_capacitor(self, name, capacitance, node1, node2):
-        """Add a capacitor to the circuit."""
-        if capacitance <= 0:
-            raise ValueError(f"Capacitance must be positive. Got {capacitance} for {name}.")
-        self.components[name] = {'type': 'capacitor', 'value': capacitance, 'nodes': (node1, node2), 'voltage': 0}
-        self.nodes.update([node1, node2])
+class Circuit:
+    def __init__(self, num_nodes, reference_node):
+        self.num_nodes = num_nodes
+        self.reference_node = reference_node
+        self.components = []
+        self.branch_info = []  # Store branch information
 
-    def add_inductor(self, name, inductance, node1, node2):
-        """Add an inductor to the circuit."""
-        if inductance <= 0:
-            raise ValueError(f"Inductance must be positive. Got {inductance} for {name}.")
-        self.components[name] = {'type': 'inductor', 'value': inductance, 'nodes': (node1, node2), 'current': 0}
-        self.nodes.update([node1, node2])
+    def add_component(self, component):
+        self.components.append(component)
 
-    def add_voltage_source(self, name, voltage_function, node1, node2):
-        """Add a time-dependent voltage source to the circuit."""
-        self.components[name] = {'type': 'voltage_source', 'value_function': voltage_function, 'nodes': (node2, node1)}
-        self.nodes.update([node1, node2])
-        self.voltage_sources.append(name)
+    def generate_netlist(self):
+        netlist = []
+        for comp in self.components:
+            netlist.append(f"{comp.name} {comp.nodes[0]} {comp.nodes[1]} {comp.value} {comp.ac_dc} {comp.frequency}Hz {comp.phase}°")
+        return netlist
 
-    def set_reference_node(self, node):
-        """Set the reference node (ground) for the circuit."""
-        if node not in self.nodes:
-            raise ValueError(f"Reference node {node} is not in the circuit.")
-        self.reference_node = node
+    def transform_components(self, timestep):
+        transformed_components = []
+        for comp in self.components:
+            if 'C' in comp.name:
+                eq_resistance = timestep / (2 * comp.value)
+                transformed_components.append(Component(comp.name+"_R_eq", eq_resistance, comp.nodes))
+            elif 'L' in comp.name:
+                eq_resistance = 2 * comp.value / timestep
+                transformed_components.append(Component(comp.name+"_R_eq", eq_resistance, comp.nodes))
+            else:
+                transformed_components.append(comp)
+        self.components = transformed_components
 
-    def build_matrices_dynamic(self, prev_voltages, prev_currents, delta_t, t):
-        """Build matrices for solving with capacitors and inductors in the dynamic domain."""
-        if self.reference_node is None:
-            self.reference_node = min(self.nodes)
+    def mna_analysis(self, t=0):
+        voltage_sources = [c for c in self.components if 'V' in c.name]
+        num_voltage_sources = len(voltage_sources)
+        num_vars = self.num_nodes + num_voltage_sources - 1
 
-        nodes = sorted(self.nodes - {self.reference_node})
-        node_indices = {node: i for i, node in enumerate(nodes)}
+        G_matrix = np.zeros((num_vars, num_vars))
+        I_vector = np.zeros((num_vars, 1))
 
-        n = len(nodes)
-        m = len(self.voltage_sources)
-        size = n + m
+        voltage_index = self.num_nodes - 1
 
-        A = np.zeros((size, size))
-        z = np.zeros(size)
+        for comp in self.components:
+            n1, n2 = comp.nodes
+            if n1 == self.reference_node:
+                n1 = None
+            elif n1 > self.reference_node:
+                n1 -= 1
+            if n2 == self.reference_node:
+                n2 = None
+            elif n2 > self.reference_node:
+                n2 -= 1
 
-        for name, component in self.components.items():
-            n1, n2 = component['nodes']
-            n1_is_ref = n1 == self.reference_node
-            n2_is_ref = n2 == self.reference_node
+            if 'R' in comp.name:
+                resistance = comp.value
+                if n1 is not None:
+                    G_matrix[n1, n1] += 1 / resistance
+                    if n2 is not None:
+                        G_matrix[n1, n2] -= 1 / resistance
+                if n2 is not None:
+                    G_matrix[n2, n2] += 1 / resistance
+                    if n1 is not None:
+                        G_matrix[n2, n1] -= 1 / resistance
+            elif 'I' in comp.name:  # Current source
+                if comp.ac_dc == "AC":
+                    current = comp.value * np.sin(2 * np.pi * comp.frequency * t + np.deg2rad(comp.phase))
+                else:
+                    current = comp.value
+                if n1 is not None:
+                    I_vector[n1] -= current
+                if n2 is not None:
+                    I_vector[n2] += current
+            elif 'V' in comp.name:  # Voltage source
+                if comp.ac_dc == "AC":
+                    voltage = comp.value * np.sin(2 * np.pi * comp.frequency * t + np.deg2rad(comp.phase))
+                else:
+                    voltage = comp.value
+                if n1 is not None:
+                    G_matrix[n1, voltage_index] = 1
+                    G_matrix[voltage_index, n1] = 1
+                if n2 is not None:
+                    G_matrix[n2, voltage_index] = -1
+                    G_matrix[voltage_index, n2] = -1
+                I_vector[voltage_index] = voltage
+                voltage_index += 1
 
-            index_n1 = node_indices[n1] if not n1_is_ref else None
-            index_n2 = node_indices[n2] if not n2_is_ref else None
+        if np.linalg.matrix_rank(G_matrix) < G_matrix.shape[0]:
+            print("Warning: G_matrix is singular, indicating isolated nodes or missing connections.")
+            return None
 
-            if component['type'] == 'resistor':
-                g = 1 / component['value']
-                if index_n1 is not None:
-                    A[index_n1, index_n1] += g
-                if index_n2 is not None:
-                    A[index_n2, index_n2] += g
-                if index_n1 is not None and index_n2 is not None:
-                    A[index_n1, index_n2] -= g
-                    A[index_n2, index_n1] -= g
+        voltages = np.linalg.solve(G_matrix, I_vector)
+        self.calculate_branch_info(voltages, voltage_sources)
+        return voltages[:self.num_nodes - 1]
 
-            elif component['type'] == 'capacitor':
-                g = component['value'] / delta_t
-                i_prev = component['value'] * (prev_voltages.get(n1, 0) - prev_voltages.get(n2, 0)) / delta_t
-                if index_n1 is not None:
-                    A[index_n1, index_n1] += g
-                    z[index_n1] += i_prev
-                if index_n2 is not None:
-                    A[index_n2, index_n2] += g
-                    z[index_n2] -= i_prev
-                if index_n1 is not None and index_n2 is not None:
-                    A[index_n1, index_n2] -= g
-                    A[index_n2, index_n1] -= g
+    def calculate_branch_info(self, voltages, voltage_sources):
+        self.branch_info = []
+        for comp in self.components:
+            n1, n2 = comp.nodes
+            v1 = voltages[n1 - 1] if n1 > 0 else 0  # Voltage at node n1
+            v2 = voltages[n2 - 1] if n2 > 0 else 0  # Voltage at node n2
+            branch_voltage = v1 - v2  # Voltage across the component
+            branch_current = 0
 
-            elif component['type'] == 'inductor':
-                r_eq = delta_t / component['value']
-                v_prev = prev_currents[name] * r_eq
-                if index_n1 is not None:
-                    A[index_n1, index_n1] += 1 / r_eq
-                    z[index_n1] += v_prev / r_eq
-                if index_n2 is not None:
-                    A[index_n2, index_n2] += 1 / r_eq
-                    z[index_n2] -= v_prev / r_eq
-                if index_n1 is not None and index_n2 is not None:
-                    A[index_n1, index_n2] -= 1 / r_eq
-                    A[index_n2, index_n1] -= 1 / r_eq
+            if 'R' in comp.name:  # Resistor
+                branch_current = branch_voltage / comp.value
+            elif 'C' in comp.name or 'L' in comp.name:  # Capacitor or Inductor
+                branch_current = branch_voltage / comp.value
+            elif 'I' in comp.name:  # Current source
+                branch_current = comp.value
+            elif 'V' in comp.name:  # Voltage source
+                source_index = voltage_sources.index(comp)
+                branch_current = voltages[self.num_nodes - 1 + source_index][0]
 
-            elif component['type'] == 'voltage_source':
-                index = n + self.voltage_sources.index(name)
-                if index_n1 is not None:
-                    A[index, index_n1] = 1
-                    A[index_n1, index] = 1
-                if index_n2 is not None:
-                    A[index, index_n2] = -1
-                    A[index_n2, index] = -1
-                z[index] = component['value_function'](t)
+            self.branch_info.append((comp.name, n1, n2, branch_voltage, branch_current))
 
-        return A, z, node_indices
+    def display_branch_info(self):
+        print("\nBranch Information:")
+        for branch in self.branch_info:
+            voltage = branch[3]  # Voltage across the branch
+            current = branch[4]  # Current through the branch
+            if isinstance(voltage, np.ndarray):  # Check if voltage is a NumPy array
+                voltage = voltage.item()  # Extract scalar value
+            if isinstance(current, np.ndarray):  # Check if current is a NumPy array
+                current = current.item()  # Extract scalar value
+            print(f"Component {branch[0]}: Nodes {branch[1]}-{branch[2]}, Voltage = {voltage:.4f} V, Current = {current:.4f} A")
 
-    def solve_dynamic(self, time_end=1.0, time_step=0.01):
-        """Solve the circuit dynamically over time for capacitors and inductors."""
-        times = np.arange(0, time_end, time_step)
-        node_voltages = {node: [] for node in self.nodes}
-
-        prev_voltages = {node: 0 for node in self.nodes}
-        prev_currents = {name: 0 for name in self.components if self.components[name]['type'] == 'inductor'}
+    def time_domain_simulation(self, total_time, timestep):
+        self.transform_components(timestep)  # Transform reactive components
+        times = np.arange(0, total_time, timestep)
+        voltages_over_time = []
 
         for t in times:
-            A, z, node_indices = self.build_matrices_dynamic(prev_voltages, prev_currents, time_step, t)
-            solution = np.linalg.solve(A, z)
+            voltages = self.mna_analysis(t)
+            if voltages is not None:
+                voltages_with_reference = np.insert(voltages.flatten(), self.reference_node, 0)
+                voltages_over_time.append(voltages_with_reference)
+            else:
+                print("Error: Singular matrix at time t =", t)
+                return None
 
-            voltages = self.get_node_voltages(solution, node_indices)
+        voltages_over_time = np.array(voltages_over_time)
+        self.plot_node_voltages_over_time(times, voltages_over_time)
 
-            # Update previous voltages and currents
-            for node in prev_voltages:
-                prev_voltages[node] = voltages.get(node, 0)
-
-            for name, component in self.components.items():
-                if component['type'] == 'inductor':
-                    n1, n2 = component['nodes']
-                    v_n1 = voltages.get(n1, 0)
-                    v_n2 = voltages.get(n2, 0)
-                    voltage_across = v_n1 - v_n2
-                    prev_currents[name] += (voltage_across / component['value']) * time_step
-
-            for node in node_voltages:
-                node_voltages[node].append(voltages.get(node, 0))
-
-        return times, node_voltages
-
-    def get_node_voltages(self, solution, node_indices):
-        """Return the voltages at each node."""
-        nodes = sorted(self.nodes - {self.reference_node})
-        voltages = {self.reference_node: 0}
-        for i, node in enumerate(nodes):
-            voltages[node] = solution[i]
-        return voltages
+    def plot_node_voltages_over_time(self, times, voltages_over_time):
+        plt.figure()
+        for node in range(voltages_over_time.shape[1]):
+            plt.plot(times, voltages_over_time[:, node], label=f"Node {node}")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Voltage (V)")
+        plt.title("Node Voltages Over Time")
+        plt.legend()
+        plt.show()
 
 
-# Example Circuit Setup
-circuit = ComplexResistorCircuitSolver()
+# Define the circuit
+num_nodes = 3
+reference_node = 0
+circuit = Circuit(num_nodes, reference_node)
 
-# Add components: resistors, capacitors, inductors
-circuit.add_resistor('R1', 100, 0, 1)
-circuit.add_resistor('R2', 200, 1, 2)
-circuit.add_capacitor('C1', 1e-6, 1, 2)  # 1 microfarad capacitor
-circuit.add_inductor('L1', 1e-3, 2, 0)   # 1 millihenry inductor
+components = [
+    Component("I1", 1, [1, 0], "AC", 50),  # AC Current source
+    Component("R1", 1, [1, 0]), 
+    Component("R1", 1, [2, 0]),  
+    Component("V1", 1, [2, 0], "DC"), 
+    Component("R1", 1, [2, 1]),  
+]
 
-# Define a sinusoidal voltage source function (e.g., 50 Hz AC source)
-def voltage_function(t):
-    return 5 * np.sin(2 * np.pi * 50 * t)  # 50 Hz sine wave
+for comp in components:
+    circuit.add_component(comp)
 
-# Add voltage source
-circuit.add_voltage_source('V1', voltage_function, 0, 1)
+# Display netlist
+print("Netlist:")
+for line in circuit.generate_netlist():
+    print(line)
 
-# Set reference node (ground)
-circuit.set_reference_node(0)
+# Perform time-domain simulation
+timestep = 0.001
+total_time = 0.1
+circuit.time_domain_simulation(total_time, timestep)
 
-# Solve circuit dynamically over time
-times, node_voltages = circuit.solve_dynamic(time_end=0.1, time_step=1e-4)
-
-# Plot voltage vs. time for each node
-plt.figure(figsize=(10, 6))
-for node, voltages in node_voltages.items():
-    plt.plot(times, voltages, label=f'Node {node}')
-
-plt.title('Voltage vs Time at Each Node')
-plt.xlabel('Time (s)')
-plt.ylabel('Voltage (V)')
-plt.legend()
-plt.grid(True)
-plt.show()
+# Display branch information
+circuit.display_branch_info()
 
