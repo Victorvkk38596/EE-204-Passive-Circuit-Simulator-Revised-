@@ -17,6 +17,9 @@ class Circuit:
         self.reference_node = reference_node
         self.components = []
         self.branch_info = []  # Store branch information
+        self.branch_voltages_over_time = None  # Store branch voltages over time
+        self.branch_currents_over_time = None  # Store branch currents over time
+        self.nodal_voltages_over_time = None  # Store nodal voltages over time
 
     def add_component(self, component):
         self.components.append(component)
@@ -103,7 +106,7 @@ class Circuit:
         return voltages[:self.num_nodes - 1]
 
     def calculate_branch_info(self, voltages, voltage_sources):
-        self.branch_info = []
+        self.branch_info = []  # Reset branch information for each call
         for comp in self.components:
             n1, n2 = comp.nodes
             v1 = voltages[n1 - 1] if n1 > 0 else 0  # Voltage at node n1
@@ -123,41 +126,61 @@ class Circuit:
 
             self.branch_info.append((comp.name, n1, n2, branch_voltage, branch_current))
 
-    def display_branch_info(self):
-        print("\nBranch Information:")
-        for branch in self.branch_info:
-            voltage = branch[3]  # Voltage across the branch
-            current = branch[4]  # Current through the branch
-            if isinstance(voltage, np.ndarray):  # Check if voltage is a NumPy array
-                voltage = voltage.item()  # Extract scalar value
-            if isinstance(current, np.ndarray):  # Check if current is a NumPy array
-                current = current.item()  # Extract scalar value
-            print(f"Component {branch[0]}: Nodes {branch[1]}-{branch[2]}, Voltage = {voltage:.4f} V, Current = {current:.4f} A")
-
     def time_domain_simulation(self, total_time, timestep):
         self.transform_components(timestep)  # Transform reactive components
         times = np.arange(0, total_time, timestep)
-        voltages_over_time = []
 
-        for t in times:
+        # Preallocate arrays for branch voltages, currents, and nodal voltages
+        num_components = len(self.components)
+        self.branch_voltages_over_time = np.zeros((len(times), num_components))
+        self.branch_currents_over_time = np.zeros((len(times), num_components))
+        self.nodal_voltages_over_time = np.zeros((len(times), self.num_nodes))
+
+        for i, t in enumerate(times):
             voltages = self.mna_analysis(t)
-            if voltages is not None:
-                voltages_with_reference = np.insert(voltages.flatten(), self.reference_node, 0)
-                voltages_over_time.append(voltages_with_reference)
-            else:
+            if voltages is None:
                 print("Error: Singular matrix at time t =", t)
                 return None
 
-        voltages_over_time = np.array(voltages_over_time)
-        self.plot_node_voltages_over_time(times, voltages_over_time)
+            # Update branch data
+            self.branch_voltages_over_time[i, :] = [float(info[3]) for info in self.branch_info]
+            self.branch_currents_over_time[i, :] = [float(info[4]) for info in self.branch_info]
 
-    def plot_node_voltages_over_time(self, times, voltages_over_time):
+            # Update nodal voltages (insert reference node voltage as 0)
+            self.nodal_voltages_over_time[i, :] = np.insert(voltages.flatten(), self.reference_node, 0)
+
+        self.plot_branch_voltages_currents(times)
+        self.plot_nodal_voltages(times)
+
+    def plot_branch_voltages_currents(self, times):
+        # Plot branch voltages
         plt.figure()
-        for node in range(voltages_over_time.shape[1]):
-            plt.plot(times, voltages_over_time[:, node], label=f"Node {node}")
+        for i, comp in enumerate(self.components):
+            plt.plot(times, self.branch_voltages_over_time[:, i], label=f"{comp.name} Voltage")
         plt.xlabel("Time (s)")
         plt.ylabel("Voltage (V)")
-        plt.title("Node Voltages Over Time")
+        plt.title("Branch Voltages Over Time")
+        plt.legend()
+        plt.show()
+
+        # Plot branch currents
+        plt.figure()
+        for i, comp in enumerate(self.components):
+            plt.plot(times, self.branch_currents_over_time[:, i], label=f"{comp.name} Current")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Current (A)")
+        plt.title("Branch Currents Over Time")
+        plt.legend()
+        plt.show()
+
+    def plot_nodal_voltages(self, times):
+        # Plot nodal voltages
+        plt.figure()
+        for node in range(self.nodal_voltages_over_time.shape[1]):
+            plt.plot(times, self.nodal_voltages_over_time[:, node], label=f"Node {node}")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Voltage (V)")
+        plt.title("Nodal Voltages Over Time")
         plt.legend()
         plt.show()
 
@@ -168,11 +191,11 @@ reference_node = 0
 circuit = Circuit(num_nodes, reference_node)
 
 components = [
-    Component("I1", 1, [1, 0], "AC", 50),  # AC Current source
-    Component("R1", 1, [1, 0]), 
-    Component("R1", 1, [2, 0]),  
-    Component("V1", 1, [2, 0], "DC"), 
-    Component("R1", 1, [2, 1]),  
+    Component("V1", 1, [1, 0], "AC", 50),  # AC Current source
+    Component("R2", 1, [1, 0]),  # Inductor
+    Component("R3", 1, [2, 0]),  # Inductor
+    Component("V2", 1, [2, 0], "DC"),  # Inductor
+    Component("L1", 2, [2, 1]),  # Inductor
 ]
 
 for comp in components:
@@ -187,7 +210,3 @@ for line in circuit.generate_netlist():
 timestep = 0.001
 total_time = 0.1
 circuit.time_domain_simulation(total_time, timestep)
-
-# Display branch information
-circuit.display_branch_info()
-
