@@ -134,12 +134,13 @@ class Circuit:
             currents[i, :] = solution[n:]
 
             # Debugging outputs
+            '''
             print(f"Step {i}, Time {t[i]}:")
             print(f"Y matrix:\n{Y}")
             print(f"I vector:\n{I}")
             print(f"Voltages:\n{voltages[i, :]}")
             print(f"Currents:\n{currents[i, :]}")
-
+            '''
         return t, voltages, currents
 
     def plot_results(self, t, voltages, currents):
@@ -213,3 +214,5 @@ def simulate_rlc_circuit():
 
 if __name__ == "__main__":
     simulate_rlc_circuit()
+
+
