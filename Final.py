@@ -123,17 +123,6 @@ class Circuit:
         voltages[0, :] = solution[:n]
         currents[0, :] = solution[n:]
 
-        # Time stepping
-        for i in range(1, len(t)):
-            Y, I = self.build_system_matrices(
-                t[i],
-                voltages[i - 1, :],
-                currents[i - 1, len(self.inductors):]
-            )
-            solution = np.linalg.solve(Y, I)
-            voltages[i, :] = solution[:n]
-            currents[i, :] = solution[n:]
-
         for i in range(1, len(t)):
             Y, I = self.build_system_matrices(
                 t[i],
@@ -215,7 +204,7 @@ def simulate_rlc_circuit():
     circuit.add_capacitor(3, 0, 2)
     # Set simulation parameters
     circuit.dt = 1e-2  # Timestep: 1 µs
-    circuit.max_time = 30  # Simulate for 10 ms
+    circuit.max_time = 300  # Simulate for 10 ms
 
     # Solve and plot
     t, voltages, currents = circuit.solve()
