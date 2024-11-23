@@ -9,7 +9,8 @@ class Component:
         self.ac_dc = ac_dc
         self.frequency = frequency
         self.phase = phase
-
+        self.prev_voltage = 0  # For capacitors (previous voltage across capacitor)
+        self.prev_current = 0  # For inductors (previous current through inductor)
 
 class Circuit:
     def __init__(self, num_nodes, reference_node):
@@ -33,17 +34,27 @@ class Circuit:
     def transform_components(self, timestep):
         transformed_components = []
         for comp in self.components:
-            if 'C' in comp.name:
-                eq_resistance = timestep / (2 * comp.value)
-                transformed_components.append(Component(comp.name+"_R_eq", eq_resistance, comp.nodes))
-            elif 'L' in comp.name:
-                eq_resistance = 2 * comp.value / timestep
-                transformed_components.append(Component(comp.name+"_R_eq", eq_resistance, comp.nodes))
+            if 'C' in comp.name:  # Capacitor transformation
+                if comp.value == 0:
+                    print(f"Error: Zero capacitance for {comp.name}. Skipping component.")
+                    continue  # Skip capacitors with zero capacitance
+                R_eq = timestep / (2 * comp.value)  # Equivalent resistance for capacitor
+                I_eq = -(2 * comp.value * comp.prev_voltage / timestep) - comp.prev_current  # Correct capacitor current source
+                transformed_components.append(Component(comp.name + "_R_eq", R_eq, comp.nodes))
+                transformed_components.append(Component(comp.name + "_I_eq", I_eq, comp.nodes))
+            elif 'L' in comp.name:  # Inductor transformation
+                if comp.value == 0:
+                    print(f"Error: Zero inductance for {comp.name}. Skipping component.")
+                    continue  # Skip inductors with zero inductance
+                R_eq = 2 * comp.value / timestep  # Equivalent resistance for inductor
+                I_eq = (timestep * comp.prev_voltage / (2 * comp.value)) + comp.prev_current  # Correct inductor current source
+                transformed_components.append(Component(comp.name + "_R_eq", R_eq, comp.nodes))
+                transformed_components.append(Component(comp.name + "_I_eq", I_eq, comp.nodes))
             else:
                 transformed_components.append(comp)
         self.components = transformed_components
 
-    def mna_analysis(self, t=0):
+    def mna_analysis(self, t=0, timestep=0.0001):
         voltage_sources = [c for c in self.components if 'V' in c.name]
         num_voltage_sources = len(voltage_sources)
         num_vars = self.num_nodes + num_voltage_sources - 1
@@ -64,7 +75,7 @@ class Circuit:
             elif n2 > self.reference_node:
                 n2 -= 1
 
-            if 'R' in comp.name:
+            if 'R' in comp.name:  # Resistor
                 resistance = comp.value
                 if n1 is not None:
                     G_matrix[n1, n1] += 1 / resistance
@@ -116,8 +127,22 @@ class Circuit:
 
             if 'R' in comp.name:  # Resistor
                 branch_current = branch_voltage / comp.value
-            elif 'C' in comp.name or 'L' in comp.name:  # Capacitor or Inductor
-                branch_current = branch_voltage / comp.value
+            elif 'C' in comp.name:  # Capacitor
+                if comp.value == 0:
+                    print(f"Error: Zero capacitance for {comp.name}. Skipping capacitor.")
+                    continue
+                # Correct capacitor's current source
+                I_eq = -(2 * comp.value * comp.prev_voltage / timestep) - comp.prev_current
+                branch_current = I_eq + (2 * comp.value * branch_voltage / timestep)
+                comp.prev_voltage += branch_current / comp.value * timestep  # Update capacitor's voltage dynamically
+            elif 'L' in comp.name:  # Inductor
+                if comp.value == 0:
+                    print(f"Error: Zero inductance for {comp.name}. Skipping inductor.")
+                    continue
+                # Correct inductor's voltage source
+                I_eq = (timestep * comp.prev_voltage / (2 * comp.value)) + comp.prev_current
+                branch_current = I_eq + (branch_voltage * timestep / (2 * comp.value))
+                comp.prev_current += branch_current * timestep  # Update inductor's current dynamically
             elif 'I' in comp.name:  # Current source
                 branch_current = comp.value
             elif 'V' in comp.name:  # Voltage source
@@ -136,8 +161,9 @@ class Circuit:
         self.branch_currents_over_time = np.zeros((len(times), num_components))
         self.nodal_voltages_over_time = np.zeros((len(times), self.num_nodes))
 
+        # Iterate through each timestep
         for i, t in enumerate(times):
-            voltages = self.mna_analysis(t)
+            voltages = self.mna_analysis(t, timestep)
             if voltages is None:
                 print("Error: Singular matrix at time t =", t)
                 return None
@@ -184,18 +210,17 @@ class Circuit:
         plt.legend()
         plt.show()
 
-
 # Define the circuit
 num_nodes = 3
 reference_node = 0
 circuit = Circuit(num_nodes, reference_node)
 
 components = [
-    Component("V1", 1, [1, 0], "AC", 50),  # AC Current source
-    Component("R2", 1, [1, 0]),  # Inductor
-    Component("R3", 1, [2, 0]),  # Inductor
-    Component("V2", 1, [2, 0], "DC"),  # Inductor
-    Component("L1", 2, [2, 1]),  # Inductor
+    Component("V1", 1, [1, 0], "AC", 50),  # AC Voltage Source
+    Component("R2", 1, [1, 0]),  # Resistor
+    Component("R3", 1, [2, 0]),  # Resistor
+    Component("V2", 1, [2, 0], "DC"),  # DC Voltage Source
+    Component("L1", 0.1, [2, 1]),  # Inductor
 ]
 
 for comp in components:
@@ -206,6 +231,10 @@ print("Netlist:")
 for line in circuit.generate_netlist():
     print(line)
 
+# Perform time-domain simulation
+timestep = 0.0001  # Smaller timestep to capture the transient effects
+total_time = 0.1
+circuit.time_domain_simulation(total_time, timestep)
 # Perform time-domain simulation
 timestep = 0.001
 total_time = 0.1
