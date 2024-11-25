@@ -1,3 +1,4 @@
+##AC Solver
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import solve
@@ -212,8 +213,8 @@ class CircuitSolver:
         plt.subplot(2, 1, 2)
         for comp_name, i_phasor in currents.items():
             i_t = np.abs(i_phasor) * np.cos(self.omega * t + np.angle(i_phasor))
-            plt.plot(t * 1000, i_t, label=f'Component {comp_name}')
-            print(i_phasor)
+            plt.plot(t * 1000, -i_t, label=f'Component {comp_name}')
+            print(-i_phasor)
         plt.xlabel('Time (ms)')
         plt.ylabel('Current (A)')
         plt.title('Branch Currents vs Time')
