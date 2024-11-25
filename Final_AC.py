@@ -200,8 +200,8 @@ class CircuitSolver:
         plt.subplot(2, 1, 1)
         for node, v_phasor in voltages.items():
             v_t = np.abs(v_phasor) * np.cos(self.omega * t + np.angle(v_phasor))
-            print(v_phasor)
-            plt.plot(t * 1000, v_t, label=f'Node {node}')
+            print(-v_phasor)
+            plt.plot(t * 1000, -v_t, label=f'Node {node}')
         print()
         plt.xlabel('Time (ms)')
         plt.ylabel('Voltage (V)')
@@ -227,7 +227,7 @@ class CircuitSolver:
 
 def example_complex_rlc_circuit():
     """Example of a complex RLC circuit with multiple branches"""
-    solver = CircuitSolver(frequency=1/(2*np.pi))  # 1 kHz
+    solver = CircuitSolver(frequency=10/(2*np.pi))  # 1 kHz
     '''
     # Voltage source
     solver.add_component('V', 10, 0, 1, 'Vs', 0)
@@ -251,12 +251,12 @@ def example_complex_rlc_circuit():
     solver.add_component('L', 5, 2, 0, 'L1')
     '''
 
-    '''
+
     solver.add_component('V', 50, 0, 1, 'Vs', 30*np.pi/180) ##(30 degree phase)
     solver.add_component('R', 10, 1, 2, 'R1')
     solver.add_component('L', 0.5, 1, 2, 'L1')
     solver.add_component('C', 0.05, 2, 0, 'C1')
-    '''
+
 
     '''
     solver.add_component('V', 45, 1, 0, 'Vs', 30*np.pi/180)  ##(0 degree phase)
@@ -268,6 +268,8 @@ def example_complex_rlc_circuit():
     solver.add_component('C', 0.5, 5, 0, 'C2')
     solver.add_component('R', 10, 3, 0, 'R3')
     '''
+
+    '''
     solver.add_component('V', 50, 1, 0, 'Vs', 0)  ##(0 degree phase)
     solver.add_component('R', 12, 1, 2, 'R1')
     solver.add_component('L', 4, 2, 3, 'L1')
@@ -277,7 +279,7 @@ def example_complex_rlc_circuit():
     solver.add_component('C', 0.25, 5, 4, 'C2')
     solver.add_component('L', 6, 4, 6, 'L2')
     solver.add_component('R', 8, 6, 0, 'R4')
-
+    '''
     # Solve and plot
     solver.plot_results()
 
