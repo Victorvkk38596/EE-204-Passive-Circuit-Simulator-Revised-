@@ -25,6 +25,14 @@ class UnifiedCircuitSolverGUI:
         self.setup_gui()
 
     def setup_gui(self):
+        # Maximum time for simulation
+        max_time_frame = tk.LabelFrame(self.root, text="Simulation Time (seconds)")
+        max_time_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(max_time_frame, text="Max Time:").pack(side="left", padx=10)
+        self.max_time = tk.DoubleVar(value=10.0)  # Default is 10 seconds
+        tk.Entry(max_time_frame, textvariable=self.max_time).pack(side="left", padx=10)
+
         # Analysis mode selection
         mode_frame = tk.LabelFrame(self.root, text="Select Analysis Mode")
         mode_frame.pack(fill="x", padx=10, pady=5)
@@ -122,12 +130,19 @@ class UnifiedCircuitSolverGUI:
             self.comp_listbox.insert(tk.END, f"{comp.name} ({comp.type}): Value: {comp.value}, Nodes: {comp.node1}-{comp.node2}{phase_str}")
 
     def solve_circuit(self):
+
+        max_time = self.max_time.get()
+        if max_time <= 0:
+            messagebox.showerror("Error", "Maximum simulation time must be positive.")
+            return
+
         if not self.components:
             messagebox.showerror("Error", "No components to solve.")
             return
 
         if self.mode.get() == "AC":
             solver = ACSolver(self.frequency.get())
+            solver.max_time = max_time  # Pass the user-defined max time
             for comp in self.components:
                 solver.add_component(comp.type, comp.value, comp.node1, comp.node2, comp.name, comp.phase)
             voltages, currents = solver.solve()
@@ -137,6 +152,7 @@ class UnifiedCircuitSolverGUI:
 
         elif self.mode.get() == "DC":
             solver = DCSolver()
+            solver.max_time = max_time  # Pass the user-defined max time
             for comp in self.components:
                 if comp.type == "R":
                     solver.add_resistor(comp.node1, comp.node2, comp.value)
