@@ -200,7 +200,6 @@ class CircuitSolver:
         plt.subplot(2, 1, 1)
         for node, v_phasor in voltages.items():
             v_t = np.abs(v_phasor) * np.cos(self.omega * t + np.angle(v_phasor))
-            print(-v_phasor)
             plt.plot(t * 1000, -v_t, label=f'Node {node}')
         print()
         plt.xlabel('Time (ms)')
@@ -214,7 +213,6 @@ class CircuitSolver:
         for comp_name, i_phasor in currents.items():
             i_t = np.abs(i_phasor) * np.cos(self.omega * t + np.angle(i_phasor))
             plt.plot(t * 1000, -i_t, label=f'Component {comp_name}')
-            print(-i_phasor)
         plt.xlabel('Time (ms)')
         plt.ylabel('Current (A)')
         plt.title('Branch Currents vs Time')
