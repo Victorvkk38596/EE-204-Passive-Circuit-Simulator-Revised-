@@ -17,8 +17,8 @@ class Circuit:
         self.inductors = []
         self.voltage_sources = []
         self.num_nodes = 0
-        self.dt = 1e-6
-        self.max_time = 0.01
+        self.max_time = 10
+        self.dt = self.max_time / 10000
 
     def add_resistor(self, node1, node2, resistance, name=None):
         if name is None:
