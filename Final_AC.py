@@ -30,6 +30,7 @@ class CircuitSolver:
         self.components: List[Component] = []
         self.nodes = set()
         self.ground_node = 0
+        self.max_time = 10  # Default maximum simulation time
         self.graph = nx.Graph()
 
     def add_component(self,
@@ -201,7 +202,6 @@ class CircuitSolver:
         for node, v_phasor in voltages.items():
             v_t = np.abs(v_phasor) * np.cos(self.omega * t + np.angle(v_phasor))
             plt.plot(t * 1000, -v_t, label=f'Node {node}')
-        print()
         plt.xlabel('Time (ms)')
         plt.ylabel('Voltage (V)')
         plt.title('Node Voltages vs Time')
