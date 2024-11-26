@@ -131,8 +131,9 @@ class UnifiedCircuitSolverGUI:
             for comp in self.components:
                 solver.add_component(comp.type, comp.value, comp.node1, comp.node2, comp.name, comp.phase)
             voltages, currents = solver.solve()
-            self.display_results(voltages, currents)
             solver.plot_results()
+            self.display_results(voltages, currents)
+
 
         elif self.mode.get() == "DC":
             solver = DCSolver()
@@ -149,8 +150,8 @@ class UnifiedCircuitSolverGUI:
             solver.plot_results(t, voltages, currents)
 
     def display_results(self, voltages, currents):
-        result_str = "Voltages:\n" + "\n".join(f"Node {k}: {v}" for k, v in voltages.items()) + "\n"
-        result_str += "Currents:\n" + "\n".join(f"{k}: {v}" for k, v in currents.items())
+        result_str = "Voltages:\n" + "\n".join(f"Node {k}: {-v}" for k, v in voltages.items()) + "\n"
+        result_str += "Currents:\n" + "\n".join(f"{k}: {-v}" for k, v in currents.items())
         messagebox.showinfo("Results", result_str)
 
 if __name__ == "__main__":
