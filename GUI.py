@@ -3,6 +3,8 @@ from tkinter import ttk, messagebox
 from dataclasses import dataclass
 from typing import List
 import numpy as np
+import matplotlib.pyplot as plt
+import networkx as nx
 from Final_AC import CircuitSolver as ACSolver
 from Final_DC import Circuit as DCSolver
 
@@ -14,6 +16,74 @@ class Component:
     node2: int
     name: str
     phase: float = 0  # Only for AC voltage sources
+
+class CircuitDiagram:
+    def __init__(self):
+        self.graph = nx.MultiGraph()
+        self.positions = {}
+        self.labels = {}
+        self.node_counter = 1
+
+    def add_component(self, node1, node2, label):
+        """Add a component between two nodes."""
+        if node1 == 0:
+            node1_label = "GND"
+        else:
+            node1_label = f"N{node1}"
+
+        if node2 == 0:
+            node2_label = "GND"
+        else:
+            node2_label = f"N{node2}"
+
+        # Use a unique key for each edge to distinguish between multiple components
+        edge_key = f"{label}-{len(self.graph.edges(node1_label, node2_label)) + 1}"
+
+        self.graph.add_node(node1_label, pos=(node1, -node1))
+        self.graph.add_node(node2_label, pos=(node2, -node2))
+        self.graph.add_edge(node1_label, node2_label, key=edge_key, label=label)
+
+    def plot(self, title="Circuit Diagram"):
+        """Draw the circuit diagram with multiple edges properly displayed."""
+        # Generate positions for nodes
+        pos = nx.spring_layout(self.graph)  # Use spring layout for better visualization
+        plt.figure(figsize=(10, 6))
+
+        # Draw the nodes and edges
+        nx.draw(
+            self.graph,
+            pos,
+            with_labels=True,
+            node_color="skyblue",
+            node_size=3000,
+            font_size=10,
+            font_weight="bold",
+        )
+
+        # Handle edge visualization for MultiGraph
+        edge_labels = {}
+        for u, v, key, data in self.graph.edges(data=True, keys=True):
+            label = data.get("label", "")
+            if (u, v) not in edge_labels:
+                edge_labels[(u, v)] = []
+            edge_labels[(u, v)].append(label)
+
+        # Draw edge labels, offset to avoid overlap
+        for (u, v), labels in edge_labels.items():
+            for i, label in enumerate(labels):
+                # Offset labels slightly for better visualization
+                nx.draw_networkx_edge_labels(
+                    self.graph,
+                    pos,
+                    edge_labels={(u, v): label},
+                    font_color="red",
+                    font_size=10,
+                    label_pos=0.5 + i * 0.1,  # Adjust the label position
+                )
+
+        plt.title(title)
+        plt.show()
+
 
 class UnifiedCircuitSolverGUI:
     def __init__(self, root):
@@ -100,6 +170,10 @@ class UnifiedCircuitSolverGUI:
         solve_button = tk.Button(self.root, text="Solve Circuit", command=self.solve_circuit)
         solve_button.pack(pady=10)
 
+        # Preview Circuit Design button
+        preview_button = tk.Button(self.root, text="Preview Circuit Design", command=self.preview_circuit_design)
+        preview_button.pack(pady=10)
+
     def add_component(self):
         try:
             comp = Component(
@@ -130,7 +204,6 @@ class UnifiedCircuitSolverGUI:
             self.comp_listbox.insert(tk.END, f"{comp.name} ({comp.type}): Value: {comp.value}, Nodes: {comp.node1}-{comp.node2}{phase_str}")
 
     def solve_circuit(self):
-
         max_time = self.max_time.get()
         if max_time <= 0:
             messagebox.showerror("Error", "Maximum simulation time must be positive.")
@@ -148,7 +221,6 @@ class UnifiedCircuitSolverGUI:
             voltages, currents = solver.solve()
             solver.plot_results()
             self.display_results(voltages, currents)
-
 
         elif self.mode.get() == "DC":
             solver = DCSolver()
@@ -169,6 +241,22 @@ class UnifiedCircuitSolverGUI:
         result_str = "Voltages:\n" + "\n".join(f"Node {k}: {-v}" for k, v in voltages.items()) + "\n"
         result_str += "Currents:\n" + "\n".join(f"{k}: {-v}" for k, v in currents.items())
         messagebox.showinfo("Results", result_str)
+
+    def preview_circuit_design(self):
+        """Generate and display a preview of the circuit design."""
+        diagram = CircuitDiagram()
+        for comp in self.components:
+            # Create a label for the component
+            label = f"{comp.type}: {comp.value}"
+            if comp.type == "V" and self.mode.get() == "AC":
+                label += f", Phase: {np.degrees(comp.phase):.1f}°"
+
+            # Add the component to the diagram with unique edge identifiers
+            diagram.add_component(comp.node1, comp.node2, label)
+
+        # Plot the diagram
+        diagram.plot(title="Circuit Design Preview")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
