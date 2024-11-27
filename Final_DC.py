@@ -60,8 +60,9 @@ class Circuit:
                 Y[r.node2 - 1, r.node2 - 1] += 1 / r.value
                 if r.node1 > 0:
                     Y[r.node2 - 1, r.node1 - 1] -= 1 / r.value
-
-        # Add capacitor contributions using trapezoidal integration
+        '''
+        # Add capacitor contributions using trapezoidal integration (Not completely the prev current term is 
+        # not being included. The approximation wasn't perfect)
         for i, c in enumerate(self.capacitors):
             conductance = 2 * c.value / self.dt
             if c.node1 > 0:
@@ -82,8 +83,38 @@ class Circuit:
                     I[c.node1 - 1] += i_hist
                 if c.node2 > 0:
                     I[c.node2 - 1] -= i_hist
+        '''
+        # Add capacitor contributions using Euler's backward method
+        for i, c in enumerate(self.capacitors):
+            # Compute conductance for backward Euler method
+            conductance = c.value / self.dt  # C / Δt
 
-        # Add inductor contributions
+            # Stamp conductance into the Y matrix
+            if c.node1 > 0:
+                Y[c.node1 - 1, c.node1 - 1] += conductance
+                if c.node2 > 0:
+                    Y[c.node1 - 1, c.node2 - 1] -= conductance
+            if c.node2 > 0:
+                Y[c.node2 - 1, c.node2 - 1] += conductance
+                if c.node1 > 0:
+                    Y[c.node2 - 1, c.node1 - 1] -= conductance
+
+            # Compute historical current contribution
+            if prev_voltages is not None:
+                v_prev = (
+                    (prev_voltages[c.node1 - 1] if c.node1 > 0 else 0) -
+                    (prev_voltages[c.node2 - 1] if c.node2 > 0 else 0)
+                )
+                i_hist = c.value * v_prev / self.dt  # C * V(t) / Δt
+
+                # Stamp historical current contribution into I vector
+                if c.node1 > 0:
+                    I[c.node1 - 1] += i_hist
+                if c.node2 > 0:
+                    I[c.node2 - 1] -= i_hist
+ 
+        '''
+        # Add inductor contributions (This is Euler Backward Approximation)
         for i, l in enumerate(self.inductors):
             curr_idx = n + i
 
@@ -98,6 +129,33 @@ class Circuit:
 
             if prev_currents is not None:
                 I[curr_idx] = -l.value / self.dt * prev_currents[i]
+        '''
+        # Add inductor contributions using trapezoidal integration
+        for i, l in enumerate(self.inductors):
+            curr_idx = n + i
+            conductance = self.dt / (2 * l.value)  # h / (2L) term for trapezoidal method
+
+            # Stamp the Y matrix
+            if l.node1 > 0:
+                Y[curr_idx, l.node1 - 1] = 1
+                Y[l.node1 - 1, curr_idx] = 1
+            if l.node2 > 0:
+                Y[curr_idx, l.node2 - 1] = -1
+                Y[l.node2 - 1, curr_idx] = -1
+
+            # Diagonal term for the inductor's current equation
+            Y[curr_idx, curr_idx] = -1 / conductance
+
+            # Historical current term
+            if prev_voltages is not None and prev_currents is not None:
+                v_hist = (
+                    (prev_voltages[l.node1 - 1] if l.node1 > 0 else 0) -
+                    (prev_voltages[l.node2 - 1] if l.node2 > 0 else 0)
+                )
+                I_hist = v_hist + prev_currents[i] / conductance 
+
+                I[curr_idx] = -I_hist
+
 
         # Add voltage source contributions
         offset = n + len(self.inductors)
@@ -207,29 +265,20 @@ class Circuit:
 
         plt.tight_layout()
         plt.show()
+        print(list(enumerate(self.capacitors)))
+
 
 
 def simulate_rlc_circuit():
     # Create a series RLC circuit with DC source
     circuit = Circuit()
 
-    # Circuit parameters
-    V = 12.0  # Voltage source (V)
-    R1 = 1  # Resistance (Ω)
-    R2 = 5
-    R3 = 4
-    L = 2  # Inductance (H)
-    C = 1  # Capacitance (F)
+    circuit.add_voltage_source(0, 1, 10)
+    circuit.add_resistor(1, 2, 1)
+    circuit.add_capacitor(2, 0, 1)
 
-    # Add circuit elements
-    # Node 0 is ground
     '''
-    circuit.add_voltage_source(1, 0, V)
-    circuit.add_resistor(1, 2, R)
-    circuit.add_capacitor(2, 0, C)
-    '''
-    '''
-    circuit.add_voltage_source(1, 0, V)
+    circuit.add_voltage_source(0, 1, V)
     circuit.add_resistor(1, 2, R1)
     circuit.add_resistor(2, 3, R2)
     circuit.add_resistor(2, 4, R3)
@@ -245,25 +294,25 @@ def simulate_rlc_circuit():
     circuit.add_capacitor(3, 0, 2)
     '''
 
-
+    '''
     circuit.add_voltage_source(0, 1, 20)
     circuit.add_resistor(1, 2, 1)
     circuit.add_resistor(2, 3, 1)
     circuit.add_capacitor(2, 0, 0.5)
     circuit.add_capacitor(3, 0, 0.3333)
-
+    '''
+ 
     '''
     circuit.add_voltage_source(0, 1, 20)
     circuit.add_inductor(1, 2, 1)
     circuit.add_resistor(2, 0, 1)
     '''
 
-    circuit.dt = 1e-3
-    circuit.max_time = 10
+    circuit.dt = 1e-2
+    circuit.max_time = 50
 
     t, voltages, component_currents = circuit.solve()
     circuit.plot_results(t, voltages, component_currents)
-
 
 if __name__ == "__main__":
     simulate_rlc_circuit()
