@@ -3,11 +3,12 @@ from tkinter import ttk, messagebox
 from dataclasses import dataclass
 from typing import List
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import networkx as nx
 from Final_AC import CircuitSolver as ACSolver
 from Final_DC import Circuit as DCSolver
-
+matplotlib.use('qtagg')
 @dataclass
 class Component:
     type: str  # 'R', 'L', 'C', 'V'
@@ -123,7 +124,7 @@ class UnifiedCircuitSolverGUI:
         self.comp_type = tk.StringVar(value="R")
         comp_type_label = tk.Label(comp_frame, text="Type:")
         comp_type_label.pack(side="left", padx=5)
-        comp_type_menu = ttk.Combobox(comp_frame, textvariable=self.comp_type, values=["R", "L", "C", "V"], width=5)
+        comp_type_menu = ttk.Combobox(comp_frame, textvariable=self.comp_type, values=["R", "L", "C", "V", "I"], width=5)
         comp_type_menu.pack(side="left", padx=5)
 
         self.comp_name = tk.StringVar()
@@ -182,7 +183,7 @@ class UnifiedCircuitSolverGUI:
                 node1=self.node1.get(),
                 node2=self.node2.get(),
                 name=self.comp_name.get(),
-                phase=np.radians(self.phase.get()) if self.mode.get() == "AC" and self.comp_type.get() == "V" else 0
+                phase=np.radians(self.phase.get()) if self.mode.get() == "AC" and self.comp_type.get() in ["V", "I"] else 0
             )
             self.components.append(comp)
             self.update_component_list()
@@ -200,8 +201,15 @@ class UnifiedCircuitSolverGUI:
     def update_component_list(self):
         self.comp_listbox.delete(0, tk.END)
         for comp in self.components:
-            phase_str = f", Phase: {np.degrees(comp.phase):.1f}°" if comp.type == "V" and self.mode.get() == "AC" else ""
-            self.comp_listbox.insert(tk.END, f"{comp.name} ({comp.type}): Value: {comp.value}, Nodes: {comp.node1}-{comp.node2}{phase_str}")
+            phase_str = (
+                f", Phase: {np.degrees(comp.phase):.1f}°"
+                if comp.type in ["V", "I"] and self.mode.get() == "AC"
+                else ""
+            )
+            self.comp_listbox.insert(
+                tk.END,
+                f"{comp.name} ({comp.type}): Value: {comp.value}, Nodes: {comp.node1}-{comp.node2}{phase_str}"
+            )
 
     def solve_circuit(self):
         max_time = self.max_time.get()
@@ -215,7 +223,7 @@ class UnifiedCircuitSolverGUI:
 
         if self.mode.get() == "AC":
             solver = ACSolver(self.frequency.get())
-            solver.max_time = max_time  # Pass the user-defined max time
+            solver.max_time = max_time
             for comp in self.components:
                 solver.add_component(comp.type, comp.value, comp.node1, comp.node2, comp.name, comp.phase)
             voltages, currents = solver.solve()
@@ -224,7 +232,7 @@ class UnifiedCircuitSolverGUI:
 
         elif self.mode.get() == "DC":
             solver = DCSolver()
-            solver.max_time = max_time  # Pass the user-defined max time
+            solver.max_time = max_time
             for comp in self.components:
                 if comp.type == "R":
                     solver.add_resistor(comp.node1, comp.node2, comp.value)
@@ -234,6 +242,8 @@ class UnifiedCircuitSolverGUI:
                     solver.add_capacitor(comp.node1, comp.node2, comp.value)
                 elif comp.type == "V":
                     solver.add_voltage_source(comp.node1, comp.node2, comp.value)
+                elif comp.type == "I":
+                    solver.add_current_source(comp.node1, comp.node2, comp.value)
             t, voltages, currents = solver.solve()
             solver.plot_results(t, voltages, currents)
 
