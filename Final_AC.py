@@ -184,7 +184,7 @@ class CircuitSolver:
 
     def plot_results(self, t_span: Optional[Tuple[float, float]] = None, n_points: int = 1000):
         """
-        Plot node voltages and branch currents over time
+        Plot node voltages and branch currents over time, with each plot separated.
 
         Args:
             t_span (tuple): Time span (start, end) in seconds
@@ -196,31 +196,32 @@ class CircuitSolver:
         t = np.linspace(t_span[0], t_span[1], n_points)
         voltages, currents = self.solve()
 
-        # Plot voltages
-        plt.figure(figsize=(12, 8))
-        plt.subplot(2, 1, 1)
+        # Plot each node voltage in a separate plot
         for node, v_phasor in voltages.items():
             v_t = np.abs(v_phasor) * np.cos(self.omega * t + np.angle(v_phasor))
-            plt.plot(t * 1000, -v_t, label=f'Node {node}')
-        plt.xlabel('Time (ms)')
-        plt.ylabel('Voltage (V)')
-        plt.title('Node Voltages vs Time')
-        plt.grid(True)
-        plt.legend()
+            plt.figure(figsize=(8, 4))
+            plt.plot(t * 1000, -v_t, label=f'Node {node}', color='blue')
+            plt.xlabel('Time (ms)')
+            plt.ylabel('Voltage (V)')
+            plt.title(f'Voltage at Node {node} vs Time')
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
-        # Plot currents
-        plt.subplot(2, 1, 2)
+        # Plot each branch current in a separate plot
         for comp_name, i_phasor in currents.items():
             i_t = np.abs(i_phasor) * np.cos(self.omega * t + np.angle(i_phasor))
-            plt.plot(t * 1000, -i_t, label=f'Component {comp_name}')
-        plt.xlabel('Time (ms)')
-        plt.ylabel('Current (A)')
-        plt.title('Branch Currents vs Time')
-        plt.grid(True)
-        plt.legend()
+            plt.figure(figsize=(8, 4))
+            plt.plot(t * 1000, -i_t, label=f'Component {comp_name}', color='green')
+            plt.xlabel('Time (ms)')
+            plt.ylabel('Current (A)')
+            plt.title(f'Current through {comp_name} vs Time')
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
-        plt.tight_layout()
-        plt.show()
 
 
 def example_complex_rlc_circuit():
