@@ -16,6 +16,7 @@ class Circuit:
         self.capacitors = []
         self.inductors = []
         self.voltage_sources = []
+        self.current_sources = []  # Add current sources
         self.num_nodes = 0
         self.max_time = 10
         self.dt = self.max_time / 10000
@@ -42,6 +43,12 @@ class Circuit:
         if name is None:
             name = f"V{len(self.voltage_sources) + 1}"
         self.voltage_sources.append(CircuitElement(node2, node1, voltage, name))
+        self.num_nodes = max(self.num_nodes, node1, node2)
+
+    def add_current_source(self, node1, node2, current, name=None):
+        if name is None:
+            name = f"I{len(self.current_sources) + 1}"
+        self.current_sources.append(CircuitElement(node1, node2, current, name))
         self.num_nodes = max(self.num_nodes, node1, node2)
 
     def build_system_matrices(self, t, prev_voltages=None, prev_currents=None):
@@ -171,6 +178,13 @@ class Circuit:
 
             I[curr_idx] = v.value
 
+        for cs in self.current_sources:
+            current = cs.value  # Current value
+            if cs.node1 > 0:
+                I[cs.node1 - 1] -= current
+            if cs.node2 > 0:
+                I[cs.node2 - 1] += current
+
         return Y, I
 
     def calculate_component_currents(self, voltages, currents, t_idx):
@@ -204,6 +218,10 @@ class Circuit:
         for i, v in enumerate(self.voltage_sources):
             component_currents[v.name] = -currents[t_idx, offset + i]
 
+        # Currents through current sources (Given)
+        for cs in self.current_sources:
+            component_currents[cs.name] = cs.value
+
         return component_currents
 
     def solve(self):
@@ -214,7 +232,7 @@ class Circuit:
         voltages = np.zeros((len(t), n))
         currents = np.zeros((len(t), m))
         component_currents = {elem.name: np.zeros(len(t)) for elem in
-                              self.resistors + self.capacitors + self.inductors + self.voltage_sources}
+                              self.resistors + self.capacitors + self.inductors + self.voltage_sources + self.current_sources}
 
         # Initial condition (DC solution)
         Y, I = self.build_system_matrices(0)
@@ -240,50 +258,52 @@ class Circuit:
 
         return t, voltages, component_currents
 
+
     def plot_results(self, t, voltages, component_currents):
-        plt.figure(figsize=(12, 8))
-
-        # Plot node voltages
-        plt.subplot(2, 1, 1)
+        # Plot each node voltage in a separate plot
         for i in range(voltages.shape[1]):
-            plt.plot(t, voltages[:, i], label=f'Node {i + 1}')
-        plt.grid(True)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Voltage (V)')
-        plt.title('Node Voltages')
-        plt.legend()
+            plt.figure(figsize=(8, 4))
+            plt.plot(t, voltages[:, i], label=f'Node {i + 1}', color='blue')
+            plt.grid(True)
+            plt.xlabel('Time (s)')
+            plt.ylabel('Voltage (V)')
+            plt.title(f'Voltage at Node {i + 1}')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
-        # Plot component currents
-        plt.subplot(2, 1, 2)
+        # Plot each component current in a separate plot
         for name, currents in component_currents.items():
-            plt.plot(t, currents, label=name)
-        plt.grid(True)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Current (A)')
-        plt.title('Component Currents')
-        plt.legend()
+            plt.figure(figsize=(8, 4))
+            plt.plot(t, currents, label=name, color='green')
+            plt.grid(True)
+            plt.xlabel('Time (s)')
+            plt.ylabel('Current (A)')
+            plt.title(f'Current through {name}')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
-        plt.tight_layout()
-        plt.show()
-        print(list(enumerate(self.capacitors)))
+
 
 
 
 def simulate_rlc_circuit():
     # Create a series RLC circuit with DC source
     circuit = Circuit()
-
+    '''
     circuit.add_voltage_source(0, 1, 10)
     circuit.add_resistor(1, 2, 1)
     circuit.add_capacitor(2, 0, 1)
+    '''
 
     '''
-    circuit.add_voltage_source(0, 1, V)
-    circuit.add_resistor(1, 2, R1)
-    circuit.add_resistor(2, 3, R2)
-    circuit.add_resistor(2, 4, R3)
-    circuit.add_capacitor(4, 0, C)
-    circuit.add_inductor(3, 0, L)
+    circuit.add_voltage_source(0, 1, 12)
+    circuit.add_resistor(1, 2, 1)
+    circuit.add_resistor(2, 3, 1)
+    circuit.add_resistor(2, 4, 1)
+    circuit.add_capacitor(4, 0, 1)
+    circuit.add_inductor(3, 0, 1)
     '''
 
     '''
@@ -308,8 +328,14 @@ def simulate_rlc_circuit():
     circuit.add_resistor(2, 0, 1)
     '''
 
+    circuit.add_current_source(0, 1, 10)
+    circuit.add_resistor(1, 0, 6)
+    circuit.add_inductor(1, 2, 6)
+    circuit.add_resistor(2, 0, 2)
+    circuit.add_capacitor(2, 0, 4)
+
     circuit.dt = 1e-2
-    circuit.max_time = 50
+    circuit.max_time = 40
 
     t, voltages, component_currents = circuit.solve()
     circuit.plot_results(t, voltages, component_currents)
