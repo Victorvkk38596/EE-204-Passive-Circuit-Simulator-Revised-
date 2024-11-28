@@ -44,9 +44,16 @@ class CircuitDiagram:
         self.graph.add_node(node2_label, pos=(node2, -node2))
         self.graph.add_edge(node1_label, node2_label, key=edge_key, label=label)
 
+    def validate_circuit(self):
+        """Validate the circuit graph to ensure each node has at least two connections."""
+        for node in self.graph.nodes:
+            # Count the degree of the node, accounting for multi-edges
+            if self.graph.degree[node] < 2:
+                return False, f"Node {node} is not properly connected (requires at least two connections)."
+        return True, ""
+
     def plot(self, title="Circuit Diagram"):
         """Draw the circuit diagram with multiple edges properly displayed."""
-        # Generate positions for nodes
         pos = nx.spring_layout(self.graph)  # Use spring layout for better visualization
         plt.figure(figsize=(10, 6))
 
@@ -72,7 +79,6 @@ class CircuitDiagram:
         # Draw edge labels, offset to avoid overlap
         for (u, v), labels in edge_labels.items():
             for i, label in enumerate(labels):
-                # Offset labels slightly for better visualization
                 nx.draw_networkx_edge_labels(
                     self.graph,
                     pos,
@@ -212,6 +218,16 @@ class UnifiedCircuitSolverGUI:
             )
 
     def solve_circuit(self):
+        diagram = CircuitDiagram()
+        for comp in self.components:
+            label = f"{comp.type}: {comp.value}"
+            diagram.add_component(comp.node1, comp.node2, label)
+
+        valid, error_msg = diagram.validate_circuit()
+        if not valid:
+            messagebox.showerror("Error", f"Invalid circuit: {error_msg}")
+            return
+        
         max_time = self.max_time.get()
         if max_time <= 0:
             messagebox.showerror("Error", "Maximum simulation time must be positive.")
@@ -256,13 +272,15 @@ class UnifiedCircuitSolverGUI:
         """Generate and display a preview of the circuit design."""
         diagram = CircuitDiagram()
         for comp in self.components:
-            # Create a label for the component
             label = f"{comp.type}: {comp.value}"
             if comp.type == "V" and self.mode.get() == "AC":
                 label += f", Phase: {np.degrees(comp.phase):.1f}°"
-
-            # Add the component to the diagram with unique edge identifiers
             diagram.add_component(comp.node1, comp.node2, label)
+
+        valid, error_msg = diagram.validate_circuit()
+        if not valid:
+            messagebox.showerror("Error", f"Invalid circuit: {error_msg}")
+            return
 
         # Plot the diagram
         diagram.plot(title="Circuit Design Preview")
