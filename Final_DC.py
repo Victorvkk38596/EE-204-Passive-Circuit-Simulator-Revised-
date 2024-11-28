@@ -18,8 +18,8 @@ class Circuit:
         self.voltage_sources = []
         self.current_sources = []  # Add current sources
         self.num_nodes = 0
-        self.max_time = 10
-        self.dt = self.max_time / 10000
+        self.max_time = 300
+        self.dt = self.max_time / 1000000
 
     def add_resistor(self, node1, node2, resistance, name=None):
         if name is None:
@@ -225,6 +225,7 @@ class Circuit:
         return component_currents
 
     def solve(self):
+        self.dt = self.max_time/100000
         t = np.arange(0, self.max_time, self.dt)
         n = self.num_nodes
         m = len(self.voltage_sources) + len(self.inductors)
@@ -258,11 +259,24 @@ class Circuit:
 
         return t, voltages, component_currents
 
-
     def plot_results(self, t, voltages, component_currents):
-        # Plot each node voltage in a separate plot
+        # Common figure size for all plots
+        figsize = (8, 4)
+        # Plot all node voltages in a single subplot
+        plt.figure(figsize=figsize)
         for i in range(voltages.shape[1]):
-            plt.figure(figsize=(8, 4))
+            plt.plot(t, voltages[:, i], label=f'Node {i + 1}')
+        plt.grid(True)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Voltage (V)')
+        plt.title('Node Voltages')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        # Plot each node voltage in a separate plot
+        for i in range(1, voltages.shape[1]):
+            plt.figure(figsize=figsize)
             plt.plot(t, voltages[:, i], label=f'Node {i + 1}', color='blue')
             plt.grid(True)
             plt.xlabel('Time (s)')
@@ -272,9 +286,21 @@ class Circuit:
             plt.tight_layout()
             plt.show()
 
+        # Plot all component currents in a single subplot
+        plt.figure(figsize=figsize)
+        for name, currents in component_currents.items():
+            plt.plot(t, currents, label=name)
+        plt.grid(True)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Current (A)')
+        plt.title('Component Currents')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
         # Plot each component current in a separate plot
         for name, currents in component_currents.items():
-            plt.figure(figsize=(8, 4))
+            plt.figure(figsize=figsize)
             plt.plot(t, currents, label=name, color='green')
             plt.grid(True)
             plt.xlabel('Time (s)')
@@ -305,9 +331,8 @@ def simulate_rlc_circuit():
     circuit.add_capacitor(4, 0, 1)
     circuit.add_inductor(3, 0, 1)
     '''
-
     '''
-    circuit.add_voltage_source(1, 0, 40)
+    circuit.add_voltage_source(0, 1, 40)
     circuit.add_resistor(1, 2, 30)
     circuit.add_inductor(2, 3, 4)
     circuit.add_resistor(3, 0, 50)
@@ -322,20 +347,22 @@ def simulate_rlc_circuit():
     circuit.add_capacitor(3, 0, 0.3333)
     '''
  
-    '''
+
     circuit.add_voltage_source(0, 1, 20)
     circuit.add_inductor(1, 2, 1)
-    circuit.add_resistor(2, 0, 1)
-    '''
+    circuit.add_resistor(2, 3, 1)
+    circuit.add_capacitor(3, 0, 1)
 
+
+    '''
     circuit.add_current_source(0, 1, 10)
     circuit.add_resistor(1, 0, 6)
     circuit.add_inductor(1, 2, 6)
     circuit.add_resistor(2, 0, 2)
     circuit.add_capacitor(2, 0, 4)
-
-    circuit.dt = 1e-2
-    circuit.max_time = 40
+    '''
+    circuit.dt = 1e-3
+    circuit.max_time = 10
 
     t, voltages, component_currents = circuit.solve()
     circuit.plot_results(t, voltages, component_currents)
