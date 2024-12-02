@@ -251,15 +251,15 @@ class UnifiedCircuitSolverGUI:
             solver.max_time = max_time
             for comp in self.components:
                 if comp.type == "R":
-                    solver.add_resistor(comp.node1, comp.node2, comp.value)
+                    solver.add_resistor(comp.node1, comp.node2, comp.value, comp.name)
                 elif comp.type == "L":
-                    solver.add_inductor(comp.node1, comp.node2, comp.value)
+                    solver.add_inductor(comp.node1, comp.node2, comp.value, comp.name)
                 elif comp.type == "C":
-                    solver.add_capacitor(comp.node1, comp.node2, comp.value)
+                    solver.add_capacitor(comp.node1, comp.node2, comp.value, comp.name)
                 elif comp.type == "V":
-                    solver.add_voltage_source(comp.node1, comp.node2, comp.value)
+                    solver.add_voltage_source(comp.node1, comp.node2, comp.value, comp.name)
                 elif comp.type == "I":
-                    solver.add_current_source(comp.node1, comp.node2, comp.value)
+                    solver.add_current_source(comp.node1, comp.node2, comp.value, comp.name)
             t, voltages, currents = solver.solve()
             solver.plot_results(t, voltages, currents)
 
