@@ -1,5 +1,4 @@
 # EE 204 Course Project
-We'll summarise the entire project in the README.
 
 ### GUI
 
