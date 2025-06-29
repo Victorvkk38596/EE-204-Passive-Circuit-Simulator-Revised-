@@ -68,28 +68,7 @@ class Circuit:
                 if r.node1 > 0:
                     Y[r.node2 - 1, r.node1 - 1] -= 1 / r.value
         '''
-        # Add capacitor contributions using trapezoidal integration (Not completely the prev current term is 
-        # not being included. The approximation wasn't perfect)
-        for i, c in enumerate(self.capacitors):
-            conductance = 2 * c.value / self.dt
-            if c.node1 > 0:
-                Y[c.node1 - 1, c.node1 - 1] += conductance
-                if c.node2 > 0:
-                    Y[c.node1 - 1, c.node2 - 1] -= conductance
-            if c.node2 > 0:
-                Y[c.node2 - 1, c.node2 - 1] += conductance
-                if c.node1 > 0:
-                    Y[c.node2 - 1, c.node1 - 1] -= conductance
-
-            if prev_voltages is not None:
-                i_hist = 2 * c.value / self.dt * (
-                        (prev_voltages[c.node1 - 1] if c.node1 > 0 else 0) -
-                        (prev_voltages[c.node2 - 1] if c.node2 > 0 else 0)
-                )
-                if c.node1 > 0:
-                    I[c.node1 - 1] += i_hist
-                if c.node2 > 0:
-                    I[c.node2 - 1] -= i_hist
+        
         '''
         # Add capacitor contributions using Euler's backward method
         for i, c in enumerate(self.capacitors):
