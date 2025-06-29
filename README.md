@@ -1,4 +1,7 @@
 # EE 204 Course Project
+ Developed a Python-based AC/DC passive circuit simulator with GUI 
+ 
+
 
 ### GUI
 
